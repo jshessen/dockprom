@@ -1,4 +1,18 @@
-*DS_Store
-.vs/
-.vscode/
-.idea/
+# Ignore the default container config directories
+config.d/**
+
+# Ignore "secrets"
+secrets/**
+
+# Ignore Logs
+logs
+*.log
+
+# The file containing environment variables 
+.env
+
+# Caddy "users"
+caddy/users.json
+
+# Keep .gitkeep enabled directories (empty)
+!.gitkeep
