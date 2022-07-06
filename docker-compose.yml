@@ -1,18 +1,112 @@
-version: '2.1'
-
+version: "3.7"
+##############################
+# NETWORKS
+#
 networks:
-  monitor-net:
+  default:
+    name: monitor-net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.0.64/27
+#
+##############################
 
+##############################
+# VOLUMES
+#
 volumes:
-    prometheus_data: {}
-    grafana_data: {}
+  prometheus_data: {}
+  grafana_data: {}
+#
+##############################
 
+##############################
+# SECRETS (Non-Swarm)
+#
+secrets:
+  caddy_admin:
+    file: ./secrets/caddy_admin
+  caddy_admin_pw:
+    file: ./secrets/caddy_admin_pw
+  caddy_admin_pw_hash:
+    file: ./secrets/caddy_admin_pw_hash
+  caddy_jwt_token_key:
+    file: ./secrets/caddy_jwt_token_key
+  grafana_admin:
+    file: ./secrets/grafana_admin
+  grafana_admin_pw:
+    file: ./secrets/grafana_admin_pw
+  google_client_id:
+    file: ./secrets/google_client_id
+  google_client_secret:
+    file: ./secrets/google_client_secret
+#
+##############################
+
+##############################
+# SERVICES
+#
 services:
-
+  ######################
+  # MONITORING
+  #
+  ##########
+  # Caddy 2 - a powerful, enterprise-ready, open source web server with automatic HTTPS written in Go
+  #
+  caddy:
+    #image: caddy:${CADDY_TAG}
+    build: ./caddy
+    container_name: caddy
+    depends_on:
+      - prometheus
+      - alertmanager
+      - grafana
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
+    ports:
+      - ${CADDY_HTTP_PORT}:80
+      - ${CADDY_HTTPS_PORT}:443
+      - ${CADDY_METRICS_PORT}:2019
+      - ${GRAFANA_PORT}:3000
+      - ${PROMETHEUS_PORT}:9090
+      - ${ALERTMANAGER_PORT}:9093
+    volumes:
+      - ./caddy:/etc/caddy
+    secrets:
+      - caddy_admin
+      - caddy_admin_pw
+      - caddy_admin_pw_hash
+      - caddy_jwt_token_key
+    environment:
+      TZ: ${TZ}
+      GRAFANA_PORT: ${GRAFANA_PORT}
+      PROMETHEUS_PORT: ${PROMETHEUS_PORT}
+      ALERTMANAGER_PORT: ${ALERTMANAGER_PORT}
+      JWT_SHARED_KEY: /run/secrets/caddy_jwt_token_key
+      GOOGLE_CLIENT_ID: /run/secrets/google_client_id
+      GOOGLE_CLIENT_SECRET: /run/secrets/google_client_secret
+    labels:
+      org.label-schema.group: "monitoring"
+  #
+  ##########
+  
+  ##########
+  # Prometheus - open-source systems monitoring and alerting toolkit
+  #
   prometheus:
-    image: prom/prometheus:v2.26.0
+    image: prom/prometheus:${PROMETHEUS_TAG}
     container_name: prometheus
+    depends_on:
+      - alertmanager
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
     volumes:
       - ./prometheus:/etc/prometheus
       - prometheus_data:/prometheus
@@ -23,113 +117,72 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
-    restart: unless-stopped
-    expose:
-      - 9090
-    networks:
-      - monitor-net
+      - '--web.enable-admin-api'
+      #- '--web.external-url=http://catacomb:9090'
+    environment:
+      TZ: ${TZ}
     labels:
       org.label-schema.group: "monitoring"
-
+  #
+  ##########
+  
+  ##########
+  # Alertmanager - handles alerts sent by client applications such as the Prometheus server.
+  #
   alertmanager:
-    image: prom/alertmanager:v0.21.0
+    image: prom/alertmanager:${ALERTMANAGER_TAG}
     container_name: alertmanager
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
     volumes:
       - ./alertmanager:/etc/alertmanager
     command:
       - '--config.file=/etc/alertmanager/config.yml'
       - '--storage.path=/alertmanager'
-    restart: unless-stopped
-    expose:
-      - 9093
-    networks:
-      - monitor-net
+      - '--data.retention=1440h'
+      #- '--web.external-url=http://catacomb:9093'
+      - '--cluster.listen-address='
+    environment:
+      TZ: ${TZ}
     labels:
       org.label-schema.group: "monitoring"
-
-  nodeexporter:
-    image: prom/node-exporter:v1.1.2
-    container_name: nodeexporter
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
-    restart: unless-stopped
-    expose:
-      - 9100
-    networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.39.0
-    container_name: cadvisor
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      #- /cgroup:/cgroup:ro #doesn't work on MacOS only for Linux
-    restart: unless-stopped
-    expose:
-      - 8080
-    networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-
+  #
+  ##########
+  
+  ##########
+  # Grafana - is the open source analytics & monitoring solution for every database.
+  #
   grafana:
-    image: grafana/grafana:7.5.5
+    image: grafana/grafana:${GRAFANA_TAG}
     container_name: grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+    secrets:
+      - grafana_admin
+      - grafana_admin_pw
     environment:
-      - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
-    expose:
-      - 3000
-    networks:
-      - monitor-net
+      TZ: ${TZ}
+      GF_SECURITY_ADMIN_USER__FILE: "/run/secrets/grafana_admin"
+      GF_SECURITY_ADMIN_PASSWORD__FILE: "/run/secrets/grafana_admin_pw"
+      GF_USERS_ALLOW_SIGN_UP: "false"
     labels:
       org.label-schema.group: "monitoring"
-
-  pushgateway:
-    image: prom/pushgateway:v1.4.0
-    container_name: pushgateway
-    restart: unless-stopped
-    expose:
-      - 9091
-    networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-
-  caddy:
-    image: caddy:2.3.0
-    container_name: caddy
-    ports:
-      - "3000:3000"
-      - "9090:9090"
-      - "9093:9093"
-      - "9091:9091"
-    volumes:
-      - ./caddy:/etc/caddy
-    environment:
-      - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-JDJhJDE0JE91S1FrN0Z0VEsyWmhrQVpON1VzdHVLSDkyWHdsN0xNbEZYdnNIZm1pb2d1blg4Y09mL0ZP}
-    restart: unless-stopped
-    networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
+  #
+  ##########
+  #
+  ####################
+#
+##############################
