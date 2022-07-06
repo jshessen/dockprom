@@ -37,10 +37,6 @@ secrets:
     file: ./secrets/grafana_admin
   grafana_admin_pw:
     file: ./secrets/grafana_admin_pw
-  google_client_id:
-    file: ./secrets/google_client_id
-  google_client_secret:
-    file: ./secrets/google_client_secret
 #
 ##############################
 
@@ -87,8 +83,6 @@ services:
       PROMETHEUS_PORT: ${PROMETHEUS_PORT}
       ALERTMANAGER_PORT: ${ALERTMANAGER_PORT}
       JWT_SHARED_KEY: /run/secrets/caddy_jwt_token_key
-      GOOGLE_CLIENT_ID: /run/secrets/google_client_id
-      GOOGLE_CLIENT_SECRET: /run/secrets/google_client_secret
     labels:
       org.label-schema.group: "monitoring"
   #
