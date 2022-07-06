@@ -52,7 +52,7 @@ services:
   #
   caddy:
     #image: caddy:${CADDY_TAG}
-    build: ./caddy
+    build: ${CONFIG_DIR}/caddy
     container_name: caddy
     depends_on:
       - prometheus
@@ -71,7 +71,7 @@ services:
       - ${PROMETHEUS_PORT}:9090
       - ${ALERTMANAGER_PORT}:9093
     volumes:
-      - ./caddy:/etc/caddy
+      - ${CONFIG_DIR}/caddy:/etc/caddy
     secrets:
       - caddy_admin
       - caddy_admin_pw
@@ -102,7 +102,7 @@ services:
     networks:
       - default
     volumes:
-      - ./prometheus:/etc/prometheus
+      - ${CONFIG_DIR}/prometheus:/etc/prometheus
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -132,7 +132,7 @@ services:
     networks:
       - default
     volumes:
-      - ./alertmanager:/etc/alertmanager
+      - ${CONFIG_DIR}/alertmanager:/etc/alertmanager
     command:
       - '--config.file=/etc/alertmanager/config.yml'
       - '--storage.path=/alertmanager'
@@ -161,9 +161,9 @@ services:
       - default
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
-      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ${CONFIG_DIR}/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ${CONFIG_DIR}/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ${CONFIG_DIR}/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
     secrets:
       - grafana_admin
       - grafana_admin_pw

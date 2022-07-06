@@ -1,0 +1,6 @@
+ORGANIZR_UID=$(id -u jshessen)
+HEIMDALL_UID=$(id -u jshessen)
+USERS_GID=$(awk -F\: '/users/ {print $3}' /etc/group)
+
+PROMETHEUS_UID=1035
+PROMETHEUS_GID=65539

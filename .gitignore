@@ -1,5 +1,5 @@
 # Ignore the default container config directories
-config.d/**
+config/**
 
 # Ignore "secrets"
 secrets/**

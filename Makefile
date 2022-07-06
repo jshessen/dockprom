@@ -3,8 +3,6 @@
 -include .env
 export
 # --------------------------
-CONFIG_DIR := ./config.d
-
 COMPOSE_MONITORING := -f docker-compose.yml
 MONITORING_SERVICES := caddy prometheus alertmanager grafana
 
@@ -18,8 +16,8 @@ ALL_SERVICES := ${MONITORING_SERVICES} ${EXPORTER_SERVICES}
 
 setup:    ## Build .env from config.d/*.env files
 ifdef CLEAN
-	@set -a && source ${CONFIG_DIR}/system.env &&	set +a && \
-  for f in ${CONFIG_DIR}/*.env; do set -a && source "$$f" &&	set +; done && \
+	@set -a && source ./config.d/dockprom.env &&	set +a && \
+  for f in ./config.d/*.env; do set -a && source "$$f" &&	set +; done && \
   env|sort > .env
 else
 	@env -i PATH="$$PATH" CLEAN=1 sh -c "make setup"
