@@ -1,0 +1,126 @@
+{
+	##############################
+	# General Options
+	#
+	#http_port 18080
+	#https_port 18443
+	debug
+	#
+	##############################
+
+	##############################
+	# TLS Options
+	#
+
+	#Disable HTTPS/TLS
+	auto_https off
+	#local_certs
+	#
+	##############################
+
+	##############################
+	# caddy-security
+	#
+
+	# Set Order
+	order authenticate before respond
+	order authorize before basicauth
+
+	security {
+		# Local Identity Store
+		local identity store localdb {
+			realm local
+			path /etc/caddy/users.json
+		}
+		authentication portal myportal {
+			crypto default token lifetime 3600
+			crypto key sign-verify {env.JWT_SHARED_KEY}
+			#cookie domain .local
+			cookie insecure on
+			#cookie strip domain
+			enable identity store localdb
+			ui {
+				links {
+					"My Identity" "/whoami" icon "las la-user"
+					"Prometheus" "http://catacomb:9090" icon "las la-fire"
+					"Alert Manager" "http://catacomb:9093" icon "las la-exclamation-circle"
+					"Grafana" "http://catacomb:3000" icon "las la-tachometer-alt"
+				}
+				#password_recovery_enabled yes
+			}
+			transform user {
+				match origin local
+				action add role authp/admin
+				action add role authp/user
+				ui link "Portal Settings" /settings icon "las la-cog"
+			}
+		}
+
+		authorization policy admins_policy {
+			set auth url http://catacomb:18080/
+			allow roles authp/admin authp/user
+			crypto key verify {env.JWT_SHARED_KEY}
+			validate bearer header
+			inject headers with claims
+			acl rule {
+				comment allow users
+				match role authp/admin
+				allow stop log info
+			}
+			acl rule {
+				comment default deny
+				match any
+				deny log warn
+			}
+		}
+	}
+	#
+	##############################
+}
+
+##############################
+# Snippets
+#
+(basic-auth) {
+	basicauth /* {
+		#pw = hiccup
+		admin JDJhJDEwJEVCNmdaNEg2Ti5iejRMYkF3MFZhZ3VtV3E1SzBWZEZ5Q3VWc0tzOEJwZE9TaFlZdEVkZDhX
+	}
+}
+#
+##############################
+
+##############################
+# Sites
+#
+
+# Authentication Portal
+:80 {
+	authenticate with myportal
+}
+
+:{$PROMETHEUS_PORT} {
+	route {
+		authorize with admins_policy
+		reverse_proxy prometheus:{$PROMETHEUS_PORT}
+	}
+}
+:{$ALERTMANAGER_PORT} {
+	route {
+		authorize with admins_policy
+		reverse_proxy alertmanager:{$ALERTMANAGER_PORT}
+	}
+}
+:{$GRAFANA_PORT} {
+	route {
+		authorize with admins_policy
+		reverse_proxy grafana:{$GRAFANA_PORT} {
+			header_up X-WEBAUTH-USER {http.auth.user.id}
+			header_up X-WEBAUTH-NAME {http.auth.user.name}
+			header_up X-WEBAUTH-ROLE {http.auth.user.roles}
+			header_up X-WEBAUTH-EMAIL {http.auth.user.email}
+		}
+	}
+}
+#
+##############################
